@@ -4,10 +4,12 @@ import helmet from 'helmet';
 import { DeepResearch } from './deep-research';
 import { ProgressManager } from './progress-manager';
 import { OutputManager } from './output-manager';
+import { ResearchRequestSchema, ResearchTask } from './types';
 
 const app = express();
 const port = process.env.PORT || 3002;
 const host = process.env.HOST || '0.0.0.0';
+const maxConcurrentTasks = process.env.MAX_CONCURRENT_TASKS ? parseInt(process.env.MAX_CONCURRENT_TASKS) : 5;
 
 // Middleware
 app.use(cors());
@@ -15,26 +17,70 @@ app.use(helmet());
 app.use(express.json());
 
 // Task storage
-const tasks = new Map();
+const tasks = new Map<string, ResearchTask>();
+
+// Error handling middleware
+app.use((err: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {
+  console.error('Unhandled error:', err);
+  res.status(500).json({
+    error: 'Internal server error',
+    message: process.env.NODE_ENV === 'development' ? err.message : undefined
+  });
+});
 
 // Health check
 app.get('/health', (req, res) => {
-  res.json({ status: 'ok' });
+  const runningTasks = Array.from(tasks.values()).filter(t => t.status === 'running').length;
+  res.json({
+    status: 'ok',
+    version: process.env.npm_package_version,
+    tasks: {
+      running: runningTasks,
+      total: tasks.size,
+      maxConcurrent: maxConcurrentTasks
+    }
+  });
 });
 
 // Start research
 app.post('/research', async (req, res) => {
   try {
-    const { query, depth = 3, breadth = 3 } = req.body;
-    
-    if (!query) {
-      return res.status(400).json({ error: 'Query is required' });
+    // Validate request body
+    const result = ResearchRequestSchema.safeParse(req.body);
+    if (!result.success) {
+      return res.status(400).json({
+        error: 'Invalid request',
+        details: result.error.issues
+      });
     }
 
-    const taskId = `task-${Date.now()}`;
+    // Check concurrent task limit
+    const runningTasks = Array.from(tasks.values()).filter(t => t.status === 'running').length;
+    if (runningTasks >= maxConcurrentTasks) {
+      return res.status(429).json({
+        error: 'Too many concurrent tasks',
+        message: `Maximum of ${maxConcurrentTasks} concurrent tasks allowed`
+      });
+    }
+
+    const { query, depth, breadth } = result.data;
+    const taskId = `task-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    
     const progress = new ProgressManager();
     const output = new OutputManager();
     
+    const task: ResearchTask = {
+      id: taskId,
+      query,
+      depth,
+      breadth,
+      status: 'running',
+      startTime: new Date(),
+    };
+    
+    tasks.set(taskId, task);
+
+    // Start research in background
     const research = new DeepResearch({
       query,
       maxDepth: depth,
@@ -43,13 +89,21 @@ app.post('/research', async (req, res) => {
       outputManager: output,
     });
 
-    tasks.set(taskId, { research, progress, output });
-
-    // Start research in background
-    research.run().catch(error => {
+    research.run().then(result => {
+      const task = tasks.get(taskId);
+      if (task) {
+        task.status = 'completed';
+        task.endTime = new Date();
+        task.results = result.learnings;
+      }
+    }).catch(error => {
       console.error(`Task ${taskId} failed:`, error);
-      tasks.get(taskId).status = 'failed';
-      tasks.get(taskId).error = error.message;
+      const task = tasks.get(taskId);
+      if (task) {
+        task.status = 'failed';
+        task.error = error.message;
+        task.endTime = new Date();
+      }
     });
 
     res.json({
@@ -60,7 +114,10 @@ app.post('/research', async (req, res) => {
     });
   } catch (error) {
     console.error('Error starting research:', error);
-    res.status(500).json({ error: 'Failed to start research task' });
+    res.status(500).json({
+      error: 'Failed to start research task',
+      message: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
   }
 });
 
@@ -74,21 +131,60 @@ app.get('/research/:taskId', (req, res) => {
       return res.status(404).json({ error: 'Task not found' });
     }
 
-    const { progress, output, status, error } = task;
-    
     res.json({
-      taskId,
-      status: status || 'running',
-      error,
-      progress: progress.getProgress(),
-      results: output.getOutput()
+      ...task,
+      progress: task.status === 'running' ? task.progress?.getProgress() : undefined,
+      results: task.status === 'completed' ? task.results : undefined
     });
   } catch (error) {
     console.error('Error getting research status:', error);
-    res.status(500).json({ error: 'Failed to get research status' });
+    res.status(500).json({
+      error: 'Failed to get research status',
+      message: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+});
+
+// List all tasks (with pagination)
+app.get('/research', (req, res) => {
+  try {
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = Math.min(parseInt(req.query.limit as string) || 10, 50);
+    const status = req.query.status as 'running' | 'completed' | 'failed' | undefined;
+    
+    let taskList = Array.from(tasks.values());
+    
+    if (status) {
+      taskList = taskList.filter(t => t.status === status);
+    }
+    
+    const total = taskList.length;
+    const pages = Math.ceil(total / limit);
+    const offset = (page - 1) * limit;
+    
+    taskList = taskList
+      .sort((a, b) => b.startTime.getTime() - a.startTime.getTime())
+      .slice(offset, offset + limit);
+    
+    res.json({
+      tasks: taskList,
+      pagination: {
+        page,
+        limit,
+        total,
+        pages
+      }
+    });
+  } catch (error) {
+    console.error('Error listing tasks:', error);
+    res.status(500).json({
+      error: 'Failed to list tasks',
+      message: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
   }
 });
 
 app.listen(port, host, () => {
   console.log(`Deep Research API running on http://${host}:${port}`);
 });
+
