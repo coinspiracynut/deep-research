@@ -73,6 +73,8 @@ flowchart TB
 - **Smart Follow-up**: Generates follow-up questions to better understand research needs
 - **Comprehensive Reports**: Produces detailed markdown reports with findings and sources
 - **Concurrent Processing**: Handles multiple searches and result processing in parallel for efficiency
+- **RESTful API**: Simple HTTP API for starting research tasks and monitoring their progress
+- **Task Management**: Support for multiple concurrent research tasks with status tracking
 
 ## Requirements
 
@@ -92,12 +94,20 @@ flowchart TB
 npm install
 ```
 
-3. Set up environment variables in a `.env.local` file:
+3. Set up environment variables:
 
 ```bash
 FIRECRAWL_KEY="your_firecrawl_key"
-# If you want to use your self-hosted Firecrawl, add the following below:
-# FIRECRAWL_BASE_URL="http://localhost:3002"
+OPENAI_API_KEY="your_openai_key"
+HOST="0.0.0.0"  # Optional, defaults to 0.0.0.0
+PORT="3002"     # Optional, defaults to 3002
+NODE_ENV="production"
+
+# Optional configurations:
+FIRECRAWL_BASE_URL="your_firecrawl_url"  # For self-hosted Firecrawl
+OPENAI_ENDPOINT="your_openai_endpoint"    # For custom OpenAI endpoint
+OPENAI_MODEL="your_model"                # Defaults to o3-mini
+MAX_CONCURRENT_TASKS="5"                 # Defaults to 5
 
 OPENAI_KEY="your_openai_key"
 ```
@@ -175,6 +185,85 @@ OPENAI_MODEL="custom_model"
    - Generates multiple SERP queries based on research goals
    - Processes search results to extract key learnings
    - Generates follow-up research directions
+
+## API Usage
+
+### Start Research Task
+
+```bash
+POST /research
+Content-Type: application/json
+
+{
+  "query": "What are the key benefits of TypeScript in enterprise development?",
+  "depth": 1,  # How deep to go in the research (1-3 recommended)
+  "breadth": 1 # How many parallel queries to run (1-3 recommended)
+}
+
+Response:
+{
+  "taskId": "task-1234567890",
+  "status": "running",
+  "query": "What are the key benefits of TypeScript in enterprise development?",
+  "config": { "depth": 1, "breadth": 1 }
+}
+```
+
+### Check Task Status
+
+```bash
+GET /research/{taskId}
+
+Response:
+{
+  "id": "task-1234567890",
+  "query": "What are the key benefits of TypeScript in enterprise development?",
+  "depth": 1,
+  "breadth": 1,
+  "status": "completed",
+  "startTime": "2025-02-16T04:44:04.700Z",
+  "endTime": "2025-02-16T04:44:34.639Z",
+  "results": [
+    "Finding 1...",
+    "Finding 2...",
+    "Finding 3..."
+  ]
+}
+```
+
+### List All Tasks
+
+```bash
+GET /research?page=1&limit=10&status=running
+
+Response:
+{
+  "tasks": [...],
+  "pagination": {
+    "page": 1,
+    "limit": 10,
+    "total": 100,
+    "pages": 10
+  }
+}
+```
+
+### Health Check
+
+```bash
+GET /health
+
+Response:
+{
+  "status": "ok",
+  "version": "0.0.1",
+  "tasks": {
+    "running": 1,
+    "total": 10,
+    "maxConcurrent": 5
+  }
+}
+```
 
 3. **Recursive Exploration**
 

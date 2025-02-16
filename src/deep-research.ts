@@ -1,6 +1,7 @@
 import FirecrawlApp, { SearchResponse } from '@mendable/firecrawl-js';
 import { generateObject } from 'ai';
-import { compact } from 'lodash-es';
+import lodash from 'lodash';
+const { compact } = lodash;
 import pLimit from 'p-limit';
 import { z } from 'zod';
 
@@ -37,7 +38,7 @@ const ConcurrencyLimit = 2;
 // Initialize Firecrawl with optional API key and optional base url
 
 const firecrawl = new FirecrawlApp({
-  apiKey: process.env.FIRECRAWL_KEY ?? '',
+  apiKey: process.env.FIRECRAWL_KEY || '',
   apiUrl: process.env.FIRECRAWL_BASE_URL,
 });
 
@@ -98,7 +99,7 @@ async function processSerpResult({
   numFollowUpQuestions?: number;
 }) {
   const contents = compact(result.data.map(item => item.markdown)).map(
-    content => trimPrompt(content, 25_000),
+    (content: string) => trimPrompt(content, 25_000),
   );
   log(`Ran ${query}, found ${contents.length} contents`);
 

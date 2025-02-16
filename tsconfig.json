@@ -1,21 +1,14 @@
 {
-  "$schema": "https://json.schemastore.org/tsconfig",
   "compilerOptions": {
-    "declaration": true,
-    "declarationMap": true,
-    "esModuleInterop": true,
-    "incremental": false,
-    "isolatedModules": true,
-    "lib": ["es2022", "DOM", "DOM.Iterable"],
+    "target": "ES2020",
     "module": "ESNext",
-    "moduleDetection": "force",
-    "moduleResolution": "Bundler",
-    "noUncheckedIndexedAccess": true,
-    "resolveJsonModule": true,
-    "skipLibCheck": true,
+    "moduleResolution": "Node",
+    "outDir": "./dist",
+    "rootDir": "./src",
     "strict": true,
-    "target": "ES2022",
-    "outDir": "dist",
-    "rootDir": "src"
-  }
+    "esModuleInterop": true,
+    "skipLibCheck": true
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "**/*.test.ts"]
 }

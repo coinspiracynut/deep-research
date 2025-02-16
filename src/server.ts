@@ -1,4 +1,4 @@
-import express from 'express';
+import express, { Request, Response } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import { deepResearch } from './deep-research';
@@ -29,7 +29,7 @@ app.use((err: Error, req: express.Request, res: express.Response, next: express.
 });
 
 // Health check
-app.get('/health', (req, res) => {
+app.get('/health', (req: Request, res: Response) => {
   const runningTasks = Array.from(tasks.values()).filter(t => t.status === 'running').length;
   res.json({
     status: 'ok',
@@ -43,7 +43,7 @@ app.get('/health', (req, res) => {
 });
 
 // Start research
-app.post('/research', async (req, res) => {
+app.post('/research', async (req: Request, res: Response) => {
   try {
     // Validate request body
     const result = ResearchRequestSchema.safeParse(req.body);
@@ -118,13 +118,13 @@ app.post('/research', async (req, res) => {
     console.error('Error starting research:', error);
     res.status(500).json({
       error: 'Failed to start research task',
-      message: process.env.NODE_ENV === 'development' ? error.message : undefined
+      message: process.env.NODE_ENV === 'development' ? (error instanceof Error ? error.message : String(error)) : undefined
     });
   }
 });
 
 // Get research status
-app.get('/research/:taskId', (req, res) => {
+app.get('/research/:taskId', (req: Request, res: Response) => {
   try {
     const { taskId } = req.params;
     const task = tasks.get(taskId);
@@ -135,8 +135,8 @@ app.get('/research/:taskId', (req, res) => {
 
     res.json({
       ...task,
-      progress: task.status === 'running' && task.progress ? task.progress : undefined,
-      results: task.status === 'completed' ? task.results : undefined
+      progress: task.progress,
+      results: task.results
     });
   } catch (error) {
     console.error('Error getting research status:', error);
@@ -148,7 +148,7 @@ app.get('/research/:taskId', (req, res) => {
 });
 
 // List all tasks (with pagination)
-app.get('/research', (req, res) => {
+app.get('/research', (req: Request, res: Response) => {
   try {
     const page = parseInt(req.query.page as string) || 1;
     const limit = Math.min(parseInt(req.query.limit as string) || 10, 50);

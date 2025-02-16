@@ -20,7 +20,7 @@ const rl = readline.createInterface({
 // Helper function to get user input
 function askQuestion(query: string): Promise<string> {
   return new Promise(resolve => {
-    rl.question(query, answer => {
+    rl.question(query, (answer: string) => {
       resolve(answer);
     });
   });
