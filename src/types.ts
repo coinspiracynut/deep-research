@@ -1,4 +1,6 @@
 import { z } from 'zod';
+import { ProgressManager } from './progress-manager';
+import { OutputManager } from './output-manager';
 
 export const ResearchRequestSchema = z.object({
   query: z.string().min(1).max(1000),
@@ -18,6 +20,8 @@ export interface ResearchTask {
   startTime: Date;
   endTime?: Date;
   results?: string[];
+  progress?: ProgressManager;
+  output?: OutputManager;
 }
 
 export interface ResearchProgress {

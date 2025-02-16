@@ -7,7 +7,7 @@ import { OutputManager } from './output-manager';
 import { ResearchRequestSchema, ResearchTask } from './types';
 
 const app = express();
-const port = process.env.PORT || 3002;
+const port = parseInt(process.env.PORT || '3002', 10);
 const host = process.env.HOST || '0.0.0.0';
 const maxConcurrentTasks = process.env.MAX_CONCURRENT_TASKS ? parseInt(process.env.MAX_CONCURRENT_TASKS) : 5;
 
@@ -133,14 +133,14 @@ app.get('/research/:taskId', (req, res) => {
 
     res.json({
       ...task,
-      progress: task.status === 'running' ? task.progress?.getProgress() : undefined,
+      progress: task.status === 'running' && task.progress ? task.progress.getProgress() : undefined,
       results: task.status === 'completed' ? task.results : undefined
     });
   } catch (error) {
     console.error('Error getting research status:', error);
     res.status(500).json({
       error: 'Failed to get research status',
-      message: process.env.NODE_ENV === 'development' ? error.message : undefined
+      message: process.env.NODE_ENV === 'development' ? (error instanceof Error ? error.message : String(error)) : undefined
     });
   }
 });
@@ -179,7 +179,7 @@ app.get('/research', (req, res) => {
     console.error('Error listing tasks:', error);
     res.status(500).json({
       error: 'Failed to list tasks',
-      message: process.env.NODE_ENV === 'development' ? error.message : undefined
+      message: process.env.NODE_ENV === 'development' ? (error instanceof Error ? error.message : String(error)) : undefined
     });
   }
 });
