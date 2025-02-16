@@ -1,4 +1,4 @@
-import { ResearchProgress } from './deep-research';
+import { ResearchProgress } from './types';
 
 export class ProgressManager {
   private lastProgress: ResearchProgress | undefined;
@@ -24,7 +24,7 @@ export class ProgressManager {
     return `${label} [${char.repeat(filled)}${' '.repeat(empty)}] ${Math.round(percent)}%`;
   }
   
-  updateProgress(progress: ResearchProgress) {
+  update(progress: ResearchProgress) {
     // Store progress for potential redraw
     this.lastProgress = progress;
     

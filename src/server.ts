@@ -1,7 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
-import { DeepResearch } from './deep-research';
+import { deepResearch } from './deep-research';
 import { ProgressManager } from './progress-manager';
 import { OutputManager } from './output-manager';
 import { ResearchRequestSchema, ResearchTask } from './types';
@@ -81,27 +81,29 @@ app.post('/research', async (req, res) => {
     tasks.set(taskId, task);
 
     // Start research in background
-    const research = new DeepResearch({
+    deepResearch({
       query,
-      maxDepth: depth,
-      maxBreadth: breadth,
-      progressManager: progress,
-      outputManager: output,
-    });
-
-    research.run().then(result => {
+      depth,
+      breadth,
+      onProgress: (progress) => {
+        const task = tasks.get(taskId);
+        if (task && task.progress) {
+          task.progress.update(progress);
+        }
+      }
+    }).then(result => {
       const task = tasks.get(taskId);
       if (task) {
         task.status = 'completed';
         task.endTime = new Date();
         task.results = result.learnings;
       }
-    }).catch(error => {
+    }).catch((error: unknown) => {
       console.error(`Task ${taskId} failed:`, error);
       const task = tasks.get(taskId);
       if (task) {
         task.status = 'failed';
-        task.error = error.message;
+        task.error = error instanceof Error ? error.message : String(error);
         task.endTime = new Date();
       }
     });
@@ -133,7 +135,7 @@ app.get('/research/:taskId', (req, res) => {
 
     res.json({
       ...task,
-      progress: task.status === 'running' && task.progress ? task.progress.getProgress() : undefined,
+      progress: task.status === 'running' && task.progress ? task.progress : undefined,
       results: task.status === 'completed' ? task.results : undefined
     });
   } catch (error) {
